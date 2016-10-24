@@ -1,0 +1,23 @@
+{
+  "name": "rpc-virtual-bank",
+  "version": "1.0.0",
+  "description": "Virtual Currency Helpers",
+  "author": "Brian Hammond <brian@fictorial.com>",
+  "license": "MIT",
+  "dependencies": {
+    "iap": "^0.5.0",
+    "lodash": "^4.16.4"
+  },
+  "devDependencies": {
+    "ioredis": "^2.4.0",
+    "rpc-over-ws": "^1.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fictorial/rpc-virtual-bank.git"
+  },
+  "homepage": "https://github.com/fictorial/rpc-virtual-bank.git",
+  "bugs": {
+    "url": "https://github.com/fictorial/rpc-virtual-bank/issues"
+  }
+}
