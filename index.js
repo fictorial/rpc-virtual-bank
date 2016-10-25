@@ -1,7 +1,10 @@
 const _ = require('lodash')
 const iap = require('iap')
+const EventEmitter = require('events')
 
 module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
+  const emitter = new EventEmitter()
+
   redis.defineCommand('debit', {
     numberOfKeys: 1,
     lua: `
@@ -29,15 +32,23 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
 
       return new Promise((resolve, reject) => {
         iap.verifyPayment(platform, {receipt}, (error, result) => {
-          if (error)
+          if (error) {
+            emitter.emit('iap-rejected', this, platform, receipt, error)
             return reject(error)
+          }
 
           const coinsPurchased = products[result.product_id]
-          if (coinsPurchased === undefined)
-            return reject(new Error('unknown product'))
+          if (coinsPurchased === undefined) {
+            const error = new Error('unknown product')
+            emitter.emit('iap-rejected', this, platform, receipt, error)
+            return reject(error)
+          }
 
           redis.hincrby(`users/${this.clientId}`, 'coins', coinsPurchased)
-            .then(balance => resolve({balance}))
+            .then(balance => {
+              emitter.emit('iap-verified', this, platform, product_id, coinsPurchased)
+              resolve({balance})
+            })
             .catch(error => reject(error))
         })
       })
@@ -76,12 +87,15 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
               .hset(key, 'free', epoch)
               .exec()
               .then(results => {
-                const newBal = +results[0][1]
-                return {balance: newBal, nextFreeCoinsAt: epoch + freeCoinsAfter}
+                const balance = +results[0][1]
+                emitter.emit('free-coins-collected', this)
+                return {balance, nextFreeCoinsAt: epoch + freeCoinsAfter}
               })
               .catch(reject)
           } else {
-            reject('too soon')
+            const error = new Error('too soon')
+            emitter.emit('free-coins-error', this, error)
+            reject(error)
           }
         })
     },
@@ -91,7 +105,16 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
         return Promise.reject('authentication required')
 
       return redis.debit(`users/${this.clientId}`, amt)
-        .then(balance => {balance})
-    }
+        .then(balance => {
+          emitter.emit('debit', this, amt)
+          return {balance}
+        })
+        .catch(error => {
+          emitter.emit('debit-error', this, amt, error)
+          throw error
+        })
+    },
+
+    emitter
   }
 }

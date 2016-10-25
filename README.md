@@ -10,7 +10,7 @@ manage a user's coin balance in Redis.
     const Redis = require('ioredis')
     const redis = new Redis(process.env.REDIS_URL)
 
-    const handlers = require('rpc-virtual-bank')({
+    const vbank = require('rpc-virtual-bank')({
       redis,
       products: {
         'com.foobar.product1': 100,
@@ -21,7 +21,12 @@ manage a user's coin balance in Redis.
       freeCoinsAfter: 3600
     })
 
-    require('rpc-over-ws')(handlers)
+    require('rpc-over-ws')({
+      verifyIAP: vbank.verifyIAP,
+      getCoinStatus: vbank.getCoinStatus,
+      collectFreeCoins: vbank.collectFreeCoins,
+      debit: vbank.debit,
+    })
 
 ## API
 
@@ -47,3 +52,24 @@ manage a user's coin balance in Redis.
       Common error: 'out of coins'.
 
       A user's coin balance may not become negative.
+
+## Events
+
+    vbank.emitter.on('iap-rejected', (client, platform, receipt, error) => {
+    })
+
+    vbank.emitter.on('iap-verified', (client, platform, productId, coinsPurchased) => {
+    })
+
+    vbank.emitter.on('free-coins-collected', client => {
+    })
+
+    vbank.emitter.on('free-coins-error', (client, error) => {
+    })
+
+    vbank.emitter.on('debit', (client, amt) => {
+    })
+
+    vbank.emitter.on('debit-error', (client, amt, error) => {
+    })
+
