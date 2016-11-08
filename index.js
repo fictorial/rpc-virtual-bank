@@ -2,7 +2,7 @@ const _ = require('lodash')
 const iap = require('iap')
 const EventEmitter = require('events')
 
-module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
+module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgradeRedeemCoins}) {
   const emitter = new EventEmitter()
 
   redis.defineCommand('debit', {
@@ -106,12 +106,38 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter}) {
 
       return redis.debit(`users/${this.clientId}`, amt)
         .then(balance => {
+          balance = +balance
+          if (isNaN(balance))
+            throw new Error('invalid-balance')
           emitter.emit('debit', this, amt)
-          return {balance}
+          return {balance: balance}
         })
         .catch(error => {
           emitter.emit('debit-error', this, amt, error)
           throw error
+        })
+    },
+
+    // We have an old non-consumable product from an old version of the app.
+    // Allow the user to redeem a purchase thereof once for some coins.
+    // This happens if the user restores purchases in the latest version of the app.
+
+    didPreviouslyUpgrade: function ({}) {
+      if (!this.clientId)
+        return Promise.reject('authentication required')
+
+      return redis.hsetnx(`users/${this.clientId}`, 'didUpgrade', 1)
+        .then(didSet => {
+          if (!didSet)
+            throw new Error('already-upgraded')
+
+          return redis.hincrby(`users/${this.clientId}`, 'coins', upgradeRedeemCoins)
+        })
+        .then(balance => {
+          balance = +balance
+          if (isNaN(balance))
+            throw new Error('invalid-balance')
+          return balance
         })
     },
 

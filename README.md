@@ -18,13 +18,15 @@ manage a user's coin balance in Redis.
         ...
       },
       freeCoinsAmt: 100,
-      freeCoinsAfter: 3600
+      freeCoinsAfter: 3600,
+      upgradeRedeemCoins: 2500
     })
 
     require('rpc-over-ws')({
       verifyIAP: vbank.verifyIAP,
       getCoinStatus: vbank.getCoinStatus,
       collectFreeCoins: vbank.collectFreeCoins,
+      didPreviouslyUpgrade: vbank.didPreviouslyUpgrade,
       debit: vbank.debit,
     })
 
