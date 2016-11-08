@@ -141,7 +141,7 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
           balance = +balance
           if (isNaN(balance))
             throw new Error('invalid-balance')
-          return balance
+          return {balance}
         })
     },
 
