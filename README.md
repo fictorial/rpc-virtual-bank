@@ -23,6 +23,7 @@ manage a user's coin balance in Redis.
     })
 
     require('rpc-over-ws')({
+      getProductIds: vbank.getProductIds,
       verifyIAP: vbank.verifyIAP,
       getCoinStatus: vbank.getCoinStatus,
       collectFreeCoins: vbank.collectFreeCoins,

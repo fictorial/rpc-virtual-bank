@@ -26,6 +26,10 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
   })
 
   return {
+    getProductIds: function ({}) {
+      return products
+    },
+
     verifyIAP: function ({ platform, receipt }) {
       if (!this.clientId)
         return Promise.reject('authentication required')
