@@ -26,7 +26,9 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
   })
 
   function getProducts({}) {
-    return products
+    return new Promise((resolve, reject) => {
+      resolve(products)
+    })
   }
 
   function verifyIAP({ platform, receipt }) {
