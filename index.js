@@ -2,7 +2,7 @@ const _ = require('lodash')
 const iap = require('iap')
 const EventEmitter = require('events')
 
-module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgradeRedeemCoins}) {
+module.exports = function ({redis, products, signupBonus, freeCoinsAmt, freeCoinsAfter, upgradeRedeemCoins}) {
   const emitter = new EventEmitter()
 
   redis.defineCommand('debit', {
@@ -63,11 +63,25 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
     if (!this.clientId)
       return Promise.reject('authentication required')
 
-    return redis.hmget(`users/${this.clientId}`, 'coins', 'free')
+    const key = `users/${this.clientId}`
+    return redis.hmget(key, 'coins', 'free')
       .then(results => {
+        const epoch = _.now() / 1000 | 0
+
+        // Auto register a user we haven't seen before.
+        if (results[0] === null && results[1] === null) {
+          return redis.hmset(key, { coins: signupBonus, free: epoch })
+            .then(() => {
+              return {
+                balance: signupBonus,
+                nextFreeCoinsAt: epoch + freeCoinsAfter
+              }
+            })
+        }
+
+        // Existing user; get coin status
         const balance = Math.max(0, parseInt(results[0], 10) || 0)
         const freeCoinsAt = Math.max(0, parseInt(results[1], 10) || 0)
-        const epoch = _.now() / 1000 | 0
         var nextFreeCoinsAt
         if (freeCoinsAt === 0 || freeCoinsAt + freeCoinsAfter <= epoch)
           nextFreeCoinsAt = epoch
@@ -82,12 +96,13 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
       return Promise.reject('authentication required')
 
     const epoch = _.now() / 1000 | 0
+    const key = `users/${this.clientId}`
 
-    return redis.hget(`users/${this.clientId}`, 'free')
+    return redis.hget(key, 'free')
       .then(freeCoinsAt => {
         freeCoinsAt = Math.max(0, parseInt(freeCoinsAt, 10) || 0)
         if (freeCoinsAt === 0 || freeCoinsAt + freeCoinsAfter <= epoch) {
-          redis.pipeline()
+          return redis.pipeline()
             .hincrby(key, 'coins', freeCoinsAmt)
             .hset(key, 'free', epoch)
             .exec()
@@ -96,12 +111,10 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
               emitter.emit('free-coins-collected', this)
               return {balance, nextFreeCoinsAt: epoch + freeCoinsAfter}
             })
-            .catch(reject)
-        } else {
-          const error = new Error('too soon')
-          emitter.emit('free-coins-error', this, error)
-          reject(error)
         }
+        const error = new Error('too soon')
+        emitter.emit('free-coins-error', this, error)
+        throw error
       })
   }
 
@@ -115,7 +128,7 @@ module.exports = function ({redis, products, freeCoinsAmt, freeCoinsAfter, upgra
         if (isNaN(balance))
           throw new Error('invalid-balance')
         emitter.emit('debit', this, amt)
-        return {balance: balance}
+        return {balance}
       })
       .catch(error => {
         emitter.emit('debit-error', this, amt, error)
